@@ -1,0 +1,2099 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Backpack Battles — Optimiseur</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+
+<style>
+/* ==========================================================
+   DESIGN SYSTEM — Light Industrial + Néon Ambre
+   Fond : béton clair · Acier · Ambre néon · Rouge alerte
+========================================================== */
+:root {
+  /* Surfaces */
+  --bg:          #f0eeea;
+  --bg-panel:    #e8e5df;
+  --bg-card:     #ffffff;
+  --bg-inset:    #dedad3;
+  --bg-dark:     #2a2824;
+
+  /* Ambre néon — l'accent signature */
+  --amber:       #e8890a;
+  --amber-glow:  #ffb23f;
+  --amber-dim:   #c97208;
+  --amber-pale:  #fff3e0;
+  --amber-bg:    rgba(232,137,10,0.08);
+
+  /* Texte */
+  --ink:         #1c1a17;
+  --ink-mid:     #4a4540;
+  --ink-light:   #8a8278;
+  --ink-ghost:   #c4bfb8;
+
+  /* Bordures */
+  --border:      #d0cbc3;
+  --border-mid:  #b8b2aa;
+  --border-str:  #8a8278;
+
+  /* États */
+  --green:       #2d7d3a;
+  --green-bg:    #e8f5ea;
+  --red:         #c0392b;
+  --red-bg:      #fde8e7;
+  --blue:        #2456a4;
+  --blue-bg:     #e8f0fc;
+  --violet:      #6b3fa0;
+
+  /* Grid cells */
+  --cell-empty:     #e4e0d8;
+  --cell-container: #fff8ed;
+  --cell-size:      36px;
+  --cell-gap:       2px;
+  --cell-border:    #d4cec4;
+  --cell-cont-bd:   #e8890a;
+
+  --radius:    5px;
+  --radius-lg: 10px;
+  --shadow:    0 1px 3px rgba(28,26,23,0.08), 0 4px 12px rgba(28,26,23,0.04);
+  --shadow-md: 0 2px 8px rgba(28,26,23,0.12), 0 8px 24px rgba(28,26,23,0.06);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:13px;}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 400;
+  min-height: 100vh;
+  /* Texture béton subtile */
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(232,137,10,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(36,86,164,0.03) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.018'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg-inset);}
+::-webkit-scrollbar-thumb{background:var(--border-mid);border-radius:2px;}
+
+/* ── HEADER ────────────────────────────────────────────── */
+header {
+  background: var(--bg-dark);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 2px solid var(--amber);
+  box-shadow: 0 2px 20px rgba(232,137,10,0.2);
+}
+.hdr-logo {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.05rem;
+  color: var(--amber-glow);
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 12px rgba(232,137,10,0.5);
+}
+.hdr-logo span { color: #fff; }
+.hdr-sep { width: 1px; height: 20px; background: #3a3630; }
+.hdr-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  color: #6a6460;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* Budget display in header */
+.hdr-budget {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.budget-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(232,137,10,0.12);
+  border: 1px solid rgba(232,137,10,0.3);
+  border-radius: 4px;
+  padding: 5px 12px;
+}
+.budget-icon { font-size: 0.85rem; }
+.budget-val {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  color: var(--amber-glow);
+  font-weight: bold;
+  text-shadow: 0 0 8px rgba(232,137,10,0.4);
+  min-width: 50px;
+}
+.budget-lbl {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.55rem;
+  color: #6a6460;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Score chip */
+.score-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(45,125,58,0.12);
+  border: 1px solid rgba(45,125,58,0.3);
+  border-radius: 4px;
+  padding: 5px 12px;
+}
+.score-val-hdr {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  color: #4caf6e;
+  font-weight: bold;
+  min-width: 50px;
+}
+
+/* ── APP LAYOUT ─────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  height: calc(100vh - 52px);
+  overflow: hidden;
+}
+
+/* ── PANEL BASE ─────────────────────────────────────────── */
+.panel {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.panel-right { border-right: none; border-left: 1px solid var(--border); }
+
+/* Section title */
+.sec {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sec-dot {
+  width: 4px; height: 14px;
+  background: var(--amber);
+  border-radius: 1px;
+  box-shadow: 0 0 6px rgba(232,137,10,0.4);
+}
+
+/* ── BUTTONS ────────────────────────────────────────────── */
+.btn {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  border: 1px solid;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+.btn-amber {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(232,137,10,0.3), 0 0 0 0 rgba(232,137,10,0.4);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.btn-amber:hover {
+  background: var(--amber-dim);
+  box-shadow: 0 2px 14px rgba(232,137,10,0.5), 0 0 20px rgba(232,137,10,0.15);
+}
+.btn-amber.pulsing {
+  animation: btn-pulse 1.2s ease-in-out infinite;
+}
+@keyframes btn-pulse {
+  0%,100% { box-shadow: 0 2px 8px rgba(232,137,10,0.3); }
+  50%      { box-shadow: 0 2px 20px rgba(232,137,10,0.7), 0 0 30px rgba(232,137,10,0.3); }
+}
+
+.btn-outline {
+  background: var(--bg-card);
+  border-color: var(--border-mid);
+  color: var(--ink-mid);
+}
+.btn-outline:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+
+.btn-danger {
+  background: var(--bg-card);
+  border-color: #f0a9a4;
+  color: var(--red);
+}
+.btn-danger:hover { background: var(--red-bg); border-color: var(--red); }
+
+.btn-sm {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 0.6rem;
+}
+
+/* ── MARKET CARDS ───────────────────────────────────────── */
+.market-list { display: flex; flex-direction: column; gap: 7px; }
+
+.market-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+.market-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 2px 0 0 2px;
+}
+.market-card.type-item::before     { background: var(--amber); }
+.market-card.type-container::before{ background: var(--blue); }
+.market-card:hover:not(.cant-afford) {
+  border-color: var(--amber);
+  box-shadow: var(--shadow), 0 0 12px rgba(232,137,10,0.1);
+  transform: translateX(2px);
+}
+.market-card.cant-afford { opacity: 0.45; cursor: not-allowed; }
+
+.mc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+.mc-name { font-size: 0.84rem; font-weight: 700; letter-spacing: 0.03em; }
+.mc-price {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--amber);
+  font-weight: bold;
+}
+.mc-price.too-expensive { color: var(--red); }
+
+.mc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 5px; }
+.tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.5rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+.tag-Arme   {background:#fde8e7;color:#c0392b;border:1px solid #f0a9a4;}
+.tag-Magie  {background:#ede0f7;color:#6b3fa0;border:1px solid #c09de0;}
+.tag-Arc    {background:#d4f0e2;color:#2d7d3a;border:1px solid #8ecfae;}
+.tag-Poison {background:#e8f5ea;color:#1a6b3a;border:1px solid #7ecfae;}
+.tag-Feu    {background:#fff3e0;color:#e65100;border:1px solid #ffcc80;}
+.tag-Glace  {background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;}
+.tag-Bouclier{background:#fafafa;color:#546e7a;border:1px solid #b0bec5;}
+.tag-Ail    {background:#f3e5f5;color:#6a1b9a;border:1px solid #ce93d8;}
+.tag-default{background:var(--bg-inset);color:var(--ink-mid);border:1px solid var(--border);}
+
+.mc-shape-row { display: flex; gap: 3px; margin-bottom: 2px; }
+.mc-cell { width: 8px; height: 8px; border-radius: 1px; background: var(--bg-inset); }
+.mc-cell.on { }
+
+.mc-meta {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--ink-light);
+}
+
+/* ── TOOLTIP SYNERGIES ──────────────────────────────────────
+   Affiché au survol des cartes marché ET des cartes inventaire.
+   Panneau flottant sombre listant les synergies disponibles.
+=========================================================== */
+#syn-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 215px;
+  max-width: 275px;
+  background: var(--bg-card);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.38), 0 0 0 1px rgba(232,137,10,0.12);
+}
+#syn-tooltip.visible { display: flex; }
+
+/* En-tête : nom de l'item survolé */
+.stt-header {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--amber);
+  padding-bottom: 6px;
+  border-bottom: 1px solid #3a3630;
+}
+/* Sous-titre "avec ta collection" */
+.stt-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.5rem;
+  color: #534e4a;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+/* Une ligne de synergie */
+.stt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  line-height: 1.3;
+}
+/* Tags sources (tags de l'offre) */
+.stt-tags {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.stt-tag {
+  font-size: 0.48rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(232,137,10,0.18);
+  color: var(--amber-glow);
+  border: 1px solid rgba(232,137,10,0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.stt-arrow { color: #3a3630; font-size: 0.55rem; flex-shrink: 0; }
+/* Nom de l'item compatible */
+.stt-tgt {
+  color: #c8c4be;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Badge provenance */
+.stt-badge {
+  font-size: 0.44rem;
+  padding: 1px 4px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+.stt-badge-placed { background: rgba(45,125,58,0.22); color: #4caf6e; border: 1px solid rgba(45,125,58,0.4); }
+.stt-badge-inv    { background: rgba(232,137,10,0.16); color: var(--amber-glow); border: 1px solid rgba(232,137,10,0.3); }
+/* Bonus numérique */
+.stt-bonus      { color: #4caf6e; font-weight: bold; font-size: 0.65rem; flex-shrink: 0; }
+.stt-bonus-high { color: #ffb23f; }   /* ≥ 2.5 */
+/* Séparateur entre synergies et "tags qui synergisent entre eux" */
+.stt-self-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.58rem;
+  color: #6b3fa0;
+  background: rgba(107,63,160,0.1);
+  border: 1px solid rgba(107,63,160,0.25);
+  border-radius: 3px;
+  padding: 3px 7px;
+}
+/* Aucune synergie */
+.stt-empty { font-family: 'Share Tech Mono', monospace; font-size: 0.58rem; color: #4a4540; text-align: center; padding: 4px 0; }
+
+.mc-buy-btn {
+  margin-top: 7px;
+  width: 100%;
+  padding: 5px;
+  background: var(--amber-bg);
+  border: 1px solid var(--amber);
+  border-radius: 3px;
+  color: var(--amber-dim);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s;
+}
+.mc-buy-btn:hover { background: var(--amber); color: #fff; }
+.mc-buy-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ── INVENTORY ──────────────────────────────────────────── */
+.inv-list { display: flex; flex-direction: column; gap: 5px; }
+.inv-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.inv-card.selected {
+  border-color: var(--amber);
+  background: var(--amber-pale);
+  box-shadow: 0 0 0 2px rgba(232,137,10,0.15);
+}
+.inv-card:hover { border-color: var(--amber); cursor: pointer; }
+.inv-icon { font-size: 1.1rem; }
+.inv-name { font-size: 0.78rem; font-weight: 600; flex: 1; }
+.inv-dmg {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--amber);
+}
+
+/* ── CENTRE — Grille ────────────────────────────────────── */
+.grid-area {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 16px;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.grid-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.grid-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+}
+
+/* Grid wrapper avec coins déco */
+.grid-wrap {
+  position: relative;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+/* Coins ambre */
+.grid-wrap::before, .grid-wrap::after,
+.gc-bl, .gc-br {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  border-color: var(--amber);
+  border-style: solid;
+  z-index: 2;
+}
+.grid-wrap::before { top: 0; left: 0; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
+.grid-wrap::after  { top: 0; right: 0; border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; }
+.gc-bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; }
+.gc-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; }
+
+#game-grid {
+  display: grid;
+  /* grid-template-columns est définie dynamiquement via JS depuis currentGridSize */
+  gap: var(--cell-gap);
+  background: var(--cell-border);
+  padding: var(--cell-gap);
+  border-radius: 4px;
+}
+
+.cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  background: var(--cell-empty);
+  border-radius: 2px;
+  position: relative;
+  cursor: crosshair;
+  transition: background 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.55rem;
+}
+
+/* Case faisant partie d'un container */
+.cell.in-container {
+  background: var(--cell-container);
+  box-shadow: inset 0 0 0 1px rgba(232,137,10,0.2);
+}
+.cell.in-container:hover { background: #fff8e6; box-shadow: inset 0 0 0 1px rgba(232,137,10,0.5); }
+
+/* Case occupée par un item */
+.cell.has-item {
+  cursor: default;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.cell.has-item:hover { filter: brightness(1.1); }
+
+/* Highlight de preview de placement */
+.cell.preview-valid   { box-shadow: inset 0 0 0 2px var(--amber) !important; background: rgba(232,137,10,0.15) !important; }
+.cell.preview-invalid { box-shadow: inset 0 0 0 2px var(--red) !important; background: rgba(192,57,43,0.1) !important; }
+
+/* Synergie : anneau ambre animé */
+.cell.synergy {
+  box-shadow: inset 0 0 0 2px var(--amber-glow) !important;
+  animation: syn-glow 1.6s ease-in-out infinite;
+}
+@keyframes syn-glow {
+  0%,100%{box-shadow:inset 0 0 0 2px var(--amber),inset 0 0 8px rgba(232,137,10,0.2);}
+  50%    {box-shadow:inset 0 0 0 2px var(--amber-glow),inset 0 0 14px rgba(255,178,63,0.35);}
+}
+
+/* Légende couleurs items */
+.grid-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+.leg-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--ink-mid);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 8px;
+}
+.leg-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* Coordonnées */
+.grid-coords {
+  position: absolute;
+  inset: -16px 0 0 -16px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── PANNEAU DROIT ──────────────────────────────────────── */
+
+/* Score cards */
+.score-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  position: relative;
+  overflow: hidden;
+}
+.score-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+}
+.sc-amber::after { background: linear-gradient(90deg, var(--amber), var(--amber-glow), var(--amber)); }
+.sc-green::after { background: var(--green); }
+.sc-blue::after  { background: var(--blue); }
+
+.sc-lbl { font-family:'Share Tech Mono',monospace;font-size:.54rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-light);margin-bottom:4px; }
+.sc-val { font-family:'Share Tech Mono',monospace;line-height:1; }
+.sc-val.bump{animation:bump .35s ease;}
+@keyframes bump{40%{transform:scale(1.07);}}
+.sc-unit{font-family:'Share Tech Mono',monospace;font-size:.54rem;color:var(--ink-light);margin-top:2px;}
+
+.sc-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+/* Température */
+.temp-card { background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px; }
+.tr { display:flex;justify-content:space-between;align-items:center;font-family:'Share Tech Mono',monospace;font-size:.61rem;margin-bottom:7px; }
+.tr-lbl{color:var(--ink-light);}
+.tr-val{color:var(--blue);font-weight:500;}
+.t-track{height:5px;background:var(--bg-inset);border-radius:3px;overflow:hidden;border:1px solid var(--border);}
+.t-fill{height:100%;background:linear-gradient(90deg,#7aafff,var(--blue));border-radius:3px;transition:width .4s ease;}
+
+/* Stats grid */
+.stats-mini { display:grid;grid-template-columns:1fr 1fr;gap:6px; }
+.stat-c { background:var(--bg-inset);border:1px solid var(--border);border-radius:var(--radius);padding:7px 9px; }
+.stat-lbl{font-family:'Share Tech Mono',monospace;font-size:.52rem;letter-spacing:.1em;color:var(--ink-light);text-transform:uppercase;}
+.stat-v{font-family:'Share Tech Mono',monospace;font-size:.95rem;font-weight:500;color:var(--ink);margin-top:1px;}
+
+/* Synergy list */
+.syn-list { display:flex;flex-direction:column;gap:5px;max-height:140px;overflow-y:auto; }
+.syn-item {
+  background:var(--amber-pale);border:1px solid rgba(232,137,10,0.25);
+  border-radius:var(--radius);padding:6px 9px;
+  font-family:'Share Tech Mono',monospace;font-size:.58rem;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.syn-pair { color:var(--ink-mid); }
+.syn-bonus { color:var(--amber);font-weight:bold; }
+.syn-empty { font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--ink-ghost);text-align:center;padding:10px 0; }
+
+/* Chart */
+.chart-card { background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;flex:1;min-height:120px;max-height:175px; }
+.ch-lbl{font-family:'Share Tech Mono',monospace;font-size:.54rem;letter-spacing:.12em;color:var(--ink-light);text-transform:uppercase;margin-bottom:6px;}
+
+/* Log */
+.log-box{background:var(--bg-dark);border-radius:var(--radius);padding:9px 11px;font-family:'Share Tech Mono',monospace;font-size:.59rem;color:#8a8278;height:92px;overflow-y:auto;line-height:1.8;}
+.ll{display:block;}
+.lt{color:#ffffff;}
+.lo{color:#4caf6e;}.lw{color:var(--amber);}.le{color:#e57373;}.li{color:#64b5f6;}
+
+/* ── PLACEMENT TOOLBAR ──────────────────────────────────── */
+.place-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  width: 100%;
+}
+.place-label { font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--ink-light);letter-spacing:.1em;text-transform:uppercase; }
+.place-item-name { font-size:.85rem;font-weight:700;color:var(--amber); }
+.place-hint { font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--ink-ghost); }
+
+/* Rotation controls */
+.rot-btn {
+  width: 28px; height: 28px;
+  border: 1px solid var(--border-mid);
+  background: var(--bg-inset);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem;
+  color: var(--ink-mid);
+  transition: all .15s;
+}
+.rot-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+
+/* ── SA RUNNING OVERLAY ─────────────────────────────────── */
+.sa-badge {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(232,137,10,0.08);
+  border: 1px solid rgba(232,137,10,0.3);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--amber);
+}
+.sa-badge.on { display: flex; }
+.sa-spin { width: 8px; height: 8px; border: 1.5px solid rgba(232,137,10,0.3); border-top-color: var(--amber); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg);} }
+
+/* ── MENU CONTEXTUEL (clic sur item placé) ──────────────── */
+#item-ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  background: var(--bg-card);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(232,137,10,0.08);
+  padding: 5px;
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 175px;
+}
+#item-ctx-menu.open { display: flex; }
+
+.ctx-header {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.ctx-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-mid);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.ctx-btn:hover { background: var(--amber-bg); color: var(--amber); }
+.ctx-btn.ctx-danger:hover { background: var(--red-bg); color: var(--red); }
+.ctx-icon { font-size: 0.85rem; }
+
+/* ── RESPONSIVE ─────────────────────────────────────────── */
+@media(max-width:1200px){
+  :root{--cell-size:30px;}
+  .app{grid-template-columns:230px 1fr 255px;}
+}
+@media(max-width:960px){
+  :root{--cell-size:26px;}
+  .app{grid-template-columns:200px 1fr 230px;}
+  header .hdr-sub{display:none;}
+}
+/* À ajouter dans ta balise <style> */
+.preview-ok {
+  background-color: rgba(232, 137, 10, 0.4) !important; /* Ambre transparent */
+  box-shadow: inset 0 0 10px var(--amber);
+  border: 1px solid var(--amber) !important;
+  z-index: 5;
+}
+
+.preview-warn {
+  background-color: rgba(192, 57, 43, 0.5) !important; /* Rouge transparent */
+  border: 1px solid #c0392b !important;
+  z-index: 5;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ════════════════════════════════════════════ -->
+<header>
+  <div class="hdr-logo">⬡ Backpack <span>Battles</span></div>
+  <div class="hdr-sep"></div>
+  <div class="hdr-sub">M1 MIAGE · Optimisation Combinatoire</div>
+  <div class="hdr-budget">
+    <div class="budget-chip">
+      <div class="budget-icon">🪙</div>
+      <div>
+        <div class="budget-val" id="budget-val">—</div>
+        <div class="budget-lbl">Pièces d'or</div>
+      </div>
+    </div>
+    <div class="score-chip">
+      <div>
+        <div class="score-val-hdr" id="hdr-score">0</div>
+        <div class="budget-lbl">Puissance</div>
+      </div>
+    </div>
+    <div class="sa-badge" id="sa-badge">
+      <div class="sa-spin"></div>
+      Recuit en cours…
+    </div>
+  </div>
+</header>
+
+<!-- ═══ APP ═══════════════════════════════════════════════ -->
+<div class="app">
+
+  <!-- ── GAUCHE : Marché + Inventaire ─────────────────── -->
+  <div class="panel">
+
+    <div>
+      <div class="sec"><div class="sec-dot"></div>Marché</div>
+      <div style="display:flex;gap:6px;margin-top:10px;margin-bottom:10px;">
+        <button class="btn btn-amber" onclick="loadMarket()">⬡ Nouveau Marché</button>
+      </div>
+      <div class="market-list" id="market-list">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--ink-ghost);text-align:center;padding:20px 0;">
+          Cliquez "Nouveau Marché"
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;">
+      <div class="sec"><div class="sec-dot"></div>Inventaire <span id="inv-count" style="margin-left:auto;font-size:.6rem;color:var(--amber);font-family:'Share Tech Mono',monospace;"></span></div>
+      <div class="inv-list" id="inv-list" style="margin-top:10px;">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--ink-ghost);text-align:center;padding:12px 0;">
+          Aucun item
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec"><div class="sec-dot"></div>Actions</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">
+        <button class="btn btn-outline" onclick="calculateScore()">📊 Recalculer Score</button>
+        <button class="btn btn-danger"  onclick="resetGame()">■ Réinitialiser</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── CENTRE : Grille de jeu ────────────────────────── -->
+  <div class="grid-area">
+    <div class="grid-header">
+      <span class="grid-title">— Grille Globale  —</span>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--ink-light);">Cases: <span id="grid-used">0</span>/<span id="grid-total">—</span></span>
+    </div>
+
+    <!-- Toolbar placement -->
+    <div class="place-toolbar" id="place-toolbar" style="display:none;">
+      <div>
+        <div class="place-label">Placement</div>
+        <div class="place-item-name" id="place-name">—</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+        <button class="rot-btn" onclick="rotateSelected(-90)" title="Rotation -90°">↺</button>
+        <button class="rot-btn" onclick="rotateSelected(90)"  title="Rotation +90°">↻</button>
+        <span id="rot-display" style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--ink-light);">0°</span>
+        <button class="btn btn-danger btn-sm" onclick="cancelPlacement()">✕ Annuler</button>
+      </div>
+    </div>
+    <div id="place-hint" class="place-hint" style="display:none;">
+      Survolez la grille pour prévisualiser · Cliquez pour placer (case verte = valide)
+    </div>
+
+    <div class="grid-wrap" id="grid-wrap">
+      <div id="game-grid"></div>
+      <div class="gc-bl"></div><div class="gc-br"></div>
+    </div>
+
+    <div class="grid-legend" id="grid-legend"></div>
+  </div>
+
+  <!-- ── DROITE : Stats + Recuit ───────────────────────── -->
+  <div class="panel panel-right">
+
+    <div>
+      <div class="sec"><div class="sec-dot"></div>Puissance de Combat</div>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:10px;">
+        <div class="score-card sc-amber">
+          <div class="sc-lbl">Score Total</div>
+          <div class="sc-val" id="sc-total" style="font-size:2.1rem;color:var(--amber);text-shadow:0 0 16px rgba(232,137,10,0.3);">0</div>
+          <div class="sc-unit">points de dégâts</div>
+        </div>
+        <div class="sc-2col">
+          <div class="score-card sc-green">
+            <div class="sc-lbl">Base</div>
+            <div class="sc-val" id="sc-base" style="font-size:1.3rem;color:var(--green);">0</div>
+            <div class="sc-unit">puissance</div>
+          </div>
+          <div class="score-card sc-amber" style="--amber:var(--violet);">
+            <div class="sc-lbl">Synergies</div>
+            <div class="sc-val" id="sc-syn" style="font-size:1.3rem;color:var(--violet);">0</div>
+            <div class="sc-unit">bonus</div>
+          </div>
+        </div>
+        <div class="score-card sc-blue">
+          <div class="sc-lbl">Meilleur Score</div>
+          <div class="sc-val" id="sc-best" style="font-size:1.3rem;color:var(--blue);">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec"><div class="sec-dot"></div>Recuit Simulé</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        <button class="btn btn-amber" id="btn-sa" onclick="toggleSA()">▶ Lancer l'Optimisation</button>
+        <div class="temp-card">
+          <div class="tr"><span class="tr-lbl">🌡 Température</span><span class="tr-val" id="t-val">—</span></div>
+          <div class="t-track"><div class="t-fill" id="t-bar" style="width:0%"></div></div>
+        </div>
+        <div class="stats-mini">
+          <div class="stat-c"><div class="stat-lbl">Itération</div><div class="stat-v" id="sa-iter">0</div></div>
+          <div class="stat-c"><div class="stat-lbl">Taux acc.</div><div class="stat-v" id="sa-rate" style="color:var(--blue);">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec"><div class="sec-dot"></div>Synergies Actives</div>
+      <div class="syn-list" id="syn-list" style="margin-top:8px;">
+        <div class="syn-empty">Aucune synergie détectée</div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;">
+      <div class="sec"><div class="sec-dot"></div>Évolution du Score</div>
+      <div class="chart-card">
+        <div class="ch-lbl">Score · Meilleur · Itérations</div>
+        <canvas id="chart" style="width:100%;height:115px;"></canvas>
+      </div>
+      <div class="sec" style="margin-top:2px;"><div class="sec-dot"></div>Journal</div>
+      <div class="log-box" id="log" style="flex:1;min-height:72px;max-height:130px;"></div>
+    </div>
+
+  </div>
+
+</div><!-- /app -->
+
+<!-- ═══ TOOLTIP SYNERGIES ══════════════════════════════════ -->
+<div id="syn-tooltip">
+  <div class="stt-header" id="stt-header">⚡ Synergies</div>
+  <div class="stt-sub">Compatibles avec votre collection</div>
+  <div id="stt-body"></div>
+</div>
+
+<!-- ═══ MENU CONTEXTUEL ITEM ══════════════════════════════ -->
+<div id="item-ctx-menu">
+  <div class="ctx-header" id="ctx-item-name">—</div>
+  <button class="ctx-btn" onclick="startMoveItem()">
+    <span class="ctx-icon">✥</span> Déplacer
+  </button>
+  <button class="ctx-btn ctx-danger" onclick="removeItemToInventory()">
+    <span class="ctx-icon">↩</span> Remettre en inventaire
+  </button>
+</div>
+
+
+<script>
+"use strict";
+
+/* ==========================================================═
+   CONSTANTES ET COULEURS
+==========================================================═ */
+const API = "http://localhost:5000";
+// La taille de la grille est récupérée dynamiquement depuis le backend via /state
+let currentGridSize = 0;
+
+// Palette de couleurs pour les items (8 teintes distinctes)
+const ITEM_COLORS = [
+  { bg: "#fff3e0", fg: "#e65100", border: "#ffcc80" }, // orange brûlé
+  { bg: "#e8f5e9", fg: "#2e7d32", border: "#a5d6a7" }, // vert forêt
+  { bg: "#e3f2fd", fg: "#1565c0", border: "#90caf9" }, // bleu acier
+  { bg: "#fce4ec", fg: "#c62828", border: "#f48fb1" }, // rouge rubis
+  { bg: "#ede7f6", fg: "#4527a0", border: "#ce93d8" }, // violet nuit
+  { bg: "#e0f7fa", fg: "#00695c", border: "#80cbc4" }, // teal cristal
+  { bg: "#fff9c4", fg: "#f57f17", border: "#fff176" }, // jaune miel
+  { bg: "#fbe9e7", fg: "#bf360c", border: "#ffab91" }, // terre cuite
+];
+
+/* ==========================================================═
+   ÉTAT LOCAL DU JEU
+==========================================================═ */
+let state = {
+  // Grille locale (miroir du backend) — dimensionnée après récupération de grid_size
+  itemGrid:      [],
+  containerGrid: [],
+  itemsPlaced:   {},       // id → { item, x, y }
+  containers:    {},       // id → container data
+  colorMap:      {},       // item.id → color index
+
+  bestScore: 0,
+  saRunning: false,
+  saInterval: null,
+  saT0:      1000,
+  saT:       1000,
+  saIter:    0,
+  saAccepted: 0,
+
+  // Placement en cours
+  selectedItem: null,   // item de l'inventaire sélectionné
+  selectedRot:  0,      // rotation courante
+  previewCells: [],     // cellules en preview
+};
+
+/* ==========================================================═
+   CHART.JS
+==========================================================═ */
+const ctx = document.getElementById('chart').getContext('2d');
+const scoreChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: 'Score',
+        data: [],
+        borderColor: '#e8890a',
+        backgroundColor: 'rgba(232,137,10,0.08)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: true,
+      },
+      {
+        label: 'Meilleur',
+        data: [],
+        borderColor: '#2d7d3a',
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        pointRadius: 0,
+        borderDash: [4, 3],
+        tension: 0.4,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 0 },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: {
+        grid: { color: '#e8e5df' },
+        ticks: { color: '#8a8278', font: { family: 'Share Tech Mono', size: 9 } }
+      }
+    }
+  }
+});
+
+/* ==========================================================═
+   INITIALISATION DE LA GRILLE HTML
+==========================================================═ */
+function buildGridHTML() {
+  const grid = document.getElementById('game-grid');
+  grid.innerHTML = '';
+  // Applique dynamiquement le nombre de colonnes depuis la valeur serveur
+  grid.style.gridTemplateColumns = `repeat(${currentGridSize}, var(--cell-size))`;
+  for (let r = 0; r < currentGridSize; r++) {
+    for (let c = 0; c < currentGridSize; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.addEventListener('mouseenter', onCellHover);
+      cell.addEventListener('mouseleave', onCellLeave);
+      cell.addEventListener('click', onCellClick);
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function getCell(r, c) {
+  return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+}
+
+/* ==========================================================═
+   RENDU DE LA GRILLE
+==========================================================═ */
+function renderGrid() {
+  const synCells = computeSynCells();
+  let usedCount = 0;
+
+  for (let r = 0; r < currentGridSize; r++) {
+    for (let c = 0; c < currentGridSize; c++) {
+      const cell = getCell(r, c);
+      if (!cell) continue;
+
+      const itemId  = state.itemGrid[r][c];
+      const contId  = state.containerGrid[r][c];
+
+      // Reset classes
+      cell.className = 'cell';
+      cell.style.background = '';
+      cell.style.color       = '';
+      cell.style.boxShadow   = '';
+      cell.textContent       = '';
+
+      if (itemId) {
+        usedCount++;
+        const ci  = state.colorMap[itemId] ?? (Object.keys(state.colorMap).length % ITEM_COLORS.length);
+        const col = ITEM_COLORS[ci % ITEM_COLORS.length];
+        cell.classList.add('has-item');
+        cell.style.background = col.bg;
+        cell.style.color      = col.fg;
+        cell.style.boxShadow  = `inset 0 0 0 1px ${col.border}`;
+        if (synCells.has(itemId)) {
+          cell.classList.add('synergy');
+        }
+        const itData = state.itemsPlaced[itemId];
+        cell.textContent = itData?.item?.nom?.[0] || '';
+      } else if (contId) {
+        cell.classList.add('in-container');
+      }
+    }
+  }
+
+  document.getElementById('grid-used').textContent = usedCount;
+  renderLegend();
+}
+
+/* ==========================================================═
+   TABLE DE SYNERGIES — Chargée dynamiquement depuis le backend
+   via GET /synergies (source de vérité : SYNERGY_TABLE models.py).
+   Peuplée dans window.onload avant tout rendu.
+   Format bidirectionnel A+B et B+A pour lookup O(1).
+==========================================================═ */
+let SYN_TABLE = {}; // Initialisée vide, remplie par loadSynergyTable()
+
+/**
+ * Récupère SYNERGY_TABLE depuis le backend et construit SYN_TABLE
+ * dans les deux sens (A+B et B+A) pour un lookup O(1) côté client.
+ * Appelée une seule fois au chargement, avant tout rendu.
+ */
+async function loadSynergyTable() {
+  const res  = await fetch(`${API}/synergies`);
+  const data = await res.json();
+  SYN_TABLE  = {};
+  for (const { tags, bonus } of data.synergies) {
+    const [a, b] = tags;
+    SYN_TABLE[`${a}+${b}`] = bonus;
+    // Synergie réflexive (ex: Arme+Arme) : pas de doublon nécessaire
+    if (a !== b) SYN_TABLE[`${b}+${a}`] = bonus;
+  }
+}
+
+function hasSyn(tagsA, tagsB) {
+  for (const a of tagsA)
+    for (const b of tagsB)
+      if (SYN_TABLE[`${a}+${b}`]) return true;
+  return false;
+}
+
+/* ==========================================================═
+   TOOLTIP SYNERGIES
+   Calcule les synergies entre les tags d'un item (offre ou
+   inventaire) et tous les items déjà possédés (inventaire +
+   grille), puis les affiche dans un panneau flottant.
+==========================================================═ */
+
+/**
+ * Retourne la liste des synergies potentielles entre `queryTags`
+ * et tous les items de l'inventaire ET de la grille.
+ * Exclut l'item lui-même si son id est passé (evite doublons).
+ *
+ * @param {string[]} queryTags  - tags de l'item survolé
+ * @param {number|null} selfId  - id à exclure (null pour les offres du marché)
+ * @returns {{ nom, bonus, tagSrc, tagTgt, source }[]} trié par bonus desc
+ */
+function computeSynergiesFor(queryTags, selfId = null) {
+  if (!queryTags || !queryTags.length) return [];
+  const results = [];
+  const seen    = new Set();
+
+  const checkItem = (item, source) => {
+    if (!item || seen.has(item.id) || item.id === selfId) return;
+    const tags = item.tags || [];
+    for (const ta of queryTags) {
+      for (const tb of tags) {
+        // lookup dans les deux sens
+        const bonus = SYN_TABLE[`${ta}+${tb}`] ?? SYN_TABLE[`${tb}+${ta}`] ?? 0;
+        if (bonus > 0) {
+          results.push({ nom: item.nom, bonus, tagSrc: ta, tagTgt: tb, source });
+          seen.add(item.id);
+          return; // une synergie par item suffit
+        }
+      }
+    }
+  };
+
+  // Items en inventaire
+  inventory.forEach(item => checkItem(item, 'inv'));
+  // Items placés sur la grille
+  Object.values(state.itemsPlaced).forEach(({ item }) => checkItem(item, 'placed'));
+
+  results.sort((a, b) => b.bonus - a.bonus);
+  return results;
+}
+
+/**
+ * Vérifie si les tags de l'item génèrent une synergie avec eux-mêmes
+ * (ex: "Arme+Arme"). Retourne le bonus ou 0.
+ */
+function selfSynBonus(tags) {
+  for (const ta of tags)
+    for (const tb of tags)
+      if (SYN_TABLE[`${ta}+${tb}`]) return SYN_TABLE[`${ta}+${tb}`];
+  return 0;
+}
+
+/** Positionne et affiche le tooltip. */
+function showSynTooltip(e, tags, nom, selfId = null) {
+  const tooltip  = document.getElementById('syn-tooltip');
+  const header   = document.getElementById('stt-header');
+  const body     = document.getElementById('stt-body');
+  const synList  = computeSynergiesFor(tags, selfId);
+
+  // En-tête : nom de l'item survolé + ses tags
+  header.innerHTML = tags.map(t =>
+    `<span class="stt-tag">${t}</span>`
+  ).join(' ') + `<span style="color:#5a5450;margin-left:6px;font-size:.48rem;">${nom}</span>`;
+
+  // Synergie avec soi-même (ex : Arme+Arme)
+  let selfHTML = '';
+  const sb = selfSynBonus(tags);
+  if (sb > 0) {
+    selfHTML = `<div class="stt-self-row">🔗 Auto-synergie possible&nbsp;<strong style="margin-left:auto">+${sb.toFixed(1)}</strong></div>`;
+  }
+
+  if (!synList.length && !selfHTML) {
+    body.innerHTML = `<div class="stt-empty">Aucun item compatible dans votre collection</div>` + selfHTML;
+  } else {
+    body.innerHTML = synList.map(s => {
+      const badgeCls = s.source === 'placed' ? 'stt-badge-placed' : 'stt-badge-inv';
+      const badgeLbl = s.source === 'placed' ? 'grille' : 'inv.';
+      const bonusCls = s.bonus >= 2.5 ? 'stt-bonus stt-bonus-high' : 'stt-bonus';
+      return `<div class="stt-row">
+        <span class="stt-tag" style="background:rgba(100,181,246,0.12);color:#90caf9;border-color:rgba(100,181,246,0.3);">${s.tagSrc}</span>
+        <span class="stt-arrow">⟷</span>
+        <span class="stt-tgt" title="${s.nom}">${s.nom}</span>
+        <span class="stt-badge ${badgeCls}">${badgeLbl}</span>
+        <span class="${bonusCls}">+${s.bonus.toFixed(1)}</span>
+      </div>`;
+    }).join('') + selfHTML;
+  }
+
+  // Positionnement : évite les bords d'écran
+  const W = window.innerWidth, H = window.innerHeight;
+  const TW = 280, TH = Math.min(60 + (synList.length + (selfHTML ? 1 : 0)) * 26, 340);
+  let x = e.clientX + 16;
+  let y = e.clientY + 8;
+  if (x + TW > W - 8) x = e.clientX - TW - 16;
+  if (y + TH > H - 8) y = e.clientY - TH - 8;
+
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
+  tooltip.classList.add('visible');
+}
+
+function hideSynTooltip() {
+  document.getElementById('syn-tooltip').classList.remove('visible');
+}
+
+function computeSynCells() {
+  const active = new Set();
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+  for (let r = 0; r < currentGridSize; r++) {
+    for (let c = 0; c < currentGridSize; c++) {
+      const id = state.itemGrid[r][c];
+      if (!id) continue;
+      const itA = state.itemsPlaced[id]?.item;
+      if (!itA) continue;
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nr >= currentGridSize || nc < 0 || nc >= currentGridSize) continue;
+        const nid = state.itemGrid[nr][nc];
+        if (!nid || nid === id) continue;
+        const itB = state.itemsPlaced[nid]?.item;
+        if (!itB) continue;
+        if (hasSyn(itA.tags || [], itB.tags || [])) {
+          active.add(id); active.add(nid);
+        }
+      }
+    }
+  }
+  return active;
+}
+
+/* ==========================================================═
+   LÉGENDE
+==========================================================═ */
+function renderLegend() {
+  const el = document.getElementById('grid-legend');
+  el.innerHTML = '';
+  Object.entries(state.itemsPlaced).forEach(([id, { item }]) => {
+    const ci  = state.colorMap[id] ?? 0;
+    const col = ITEM_COLORS[ci % ITEM_COLORS.length];
+    const d   = document.createElement('div');
+    d.className = 'leg-chip';
+    d.innerHTML = `<div class="leg-swatch" style="background:${col.bg};border:1px solid ${col.border};"></div>${item.nom}`;
+    el.appendChild(d);
+  });
+}
+
+/* ==========================================================═
+   GESTION DU MARCHÉ
+==========================================================═ */
+async function loadMarket() {
+  try {
+    const res  = await fetch(`${API}/market`);
+    const data = await res.json();
+    renderMarket(data.offers);
+    updateUI({ budget: data.budget });
+    log('Nouveau marché généré', 'ok');
+  } catch(e) {
+    log('Erreur serveur — vérifiez que Flask tourne sur le port 5000', 'err');
+  }
+}
+
+function renderMarket(offers) {
+  const el = document.getElementById('market-list');
+  el.innerHTML = '';
+  offers.forEach(offer => {
+    const card = document.createElement('div');
+    card.className = `market-card type-${offer.type}${!offer.affordable ? ' cant-afford' : ''}`;
+
+    const priceClass = offer.affordable ? '' : 'too-expensive';
+    let tagsHTML = '';
+    if (offer.tags) {
+      tagsHTML = offer.tags.map(t => `<span class="tag tag-${t}" style="">${t}</span>`).join('');
+    }
+
+    let shapeHTML = '';
+    if (offer.forme) {
+      shapeHTML = `<div style="margin-top:5px;">
+        ${offer.forme.map(row => `<div class="mc-shape-row">${row.map(c => {
+          const col = ITEM_COLORS[Math.floor(Math.random()*3)];
+          return `<div class="mc-cell${c?' on':''}" style="${c?`background:${col.fg};opacity:.7;`:''};"></div>`;
+        }).join('')}</div>`).join('')}
+      </div>`;
+    }
+
+    let metaHTML = '';
+    if (offer.type === 'item') {
+      metaHTML = `<div class="mc-meta">⚔ ${offer.puissance} pts · ${offer.tags?.join(', ')||'—'}</div>`;
+    } else {
+      metaHTML = `<div class="mc-meta">📦 Zone ${offer.largeur}×${offer.hauteur}</div>`;
+    }
+
+    card.innerHTML = `
+      <div class="mc-head">
+        <span class="mc-name">${offer.nom}</span>
+        <span class="mc-price ${priceClass}">${offer.prix}🪙</span>
+      </div>
+      ${offer.tags ? `<div class="mc-tags">${tagsHTML}</div>` : ''}
+      ${shapeHTML}
+      ${metaHTML}
+      <button class="mc-buy-btn" ${!offer.affordable ? 'disabled' : ''}
+              onclick="buyOffer(${offer.offer_id})">
+        Acheter pour ${offer.prix}🪙
+      </button>`;
+
+    // ── Tooltip synergies : items uniquement (les containers n'ont pas de tags)
+    if (offer.type === 'item' && offer.tags?.length) {
+      const tags = offer.tags.slice();   // copie immutable
+      const nom  = offer.nom;
+      card.addEventListener('mouseenter', e => showSynTooltip(e, tags, nom, null));
+      card.addEventListener('mousemove',  e => showSynTooltip(e, tags, nom, null));
+      card.addEventListener('mouseleave', hideSynTooltip);
+    }
+
+    el.appendChild(card);
+  });
+}
+
+/* ==========================================================═
+   ACHAT
+==========================================================═ */
+async function buyOffer(offerId) {
+  try {
+    const res  = await fetch(`${API}/buy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offer_id: offerId })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // Le budget est mis à jour depuis la réponse serveur (source de vérité)
+      updateUI({ budget: data.budget });
+      log(`Acheté: ${data.message}`, 'ok');
+      // Mémorise le nom de l'item en cours de sélection avant le refresh
+      // (refreshState resynchronisera state.selectedItem par id)
+      await refreshState();
+    } else {
+      log(`Échec: ${data.message}`, 'warn');
+    }
+  } catch(e) {
+    log('Erreur serveur lors de l\'achat', 'err');
+  }
+}
+
+/* ==========================================================═
+   INVENTAIRE
+==========================================================═ */
+let inventory = [];  // Items côté client
+
+function renderInventory() {
+  const el = document.getElementById('inv-list');
+  document.getElementById('inv-count').textContent =
+    inventory.length ? `(${inventory.length})` : '';
+
+  if (!inventory.length) {
+    el.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--ink-ghost);text-align:center;padding:12px 0;">Aucun item</div>`;
+    return;
+  }
+
+  el.innerHTML = '';
+  inventory.forEach((item, i) => {
+    const d = document.createElement('div');
+    d.className = 'inv-card' + (state.selectedItem?.id === item.id ? ' selected' : '');
+    d.innerHTML = `
+      <div class="inv-icon">⚔</div>
+      <div>
+        <div class="inv-name">${item.nom}</div>
+        <div class="mc-tags">${(item.tags||[]).map(t=>`<span class="tag tag-${t}">${t}</span>`).join('')}</div>
+      </div>
+      <div class="inv-dmg">⚡${item.puissance_base||item.puissance||0}</div>`;
+    d.addEventListener('click', () => selectItemForPlacement(item));
+
+    // ── Tooltip synergies sur les cartes inventaire
+    if (item.tags?.length) {
+      const tags  = item.tags.slice();
+      const nom   = item.nom;
+      const id    = item.id;
+      d.addEventListener('mouseenter', e => showSynTooltip(e, tags, nom, id));
+      d.addEventListener('mousemove',  e => showSynTooltip(e, tags, nom, id));
+      d.addEventListener('mouseleave', hideSynTooltip);
+    }
+
+    el.appendChild(d);
+  });
+}
+
+/* ==========================================================═
+   SÉLECTION ET PLACEMENT D'ITEMS
+==========================================================═ */
+function selectItemForPlacement(item) {
+  if (state.selectedItem?.id === item.id) {
+    cancelPlacement();
+    return;
+  }
+  state.selectedItem = item;
+  // La forme reçue du backend (to_dict) est déjà tournée → rotation JS repart à 0°
+  // pour éviter une double-rotation dans getRotatedShape().
+  state.selectedRot  = 0;
+  document.getElementById('place-toolbar').style.display = 'flex';
+  document.getElementById('place-hint').style.display    = 'block';
+  document.getElementById('place-name').textContent      = item.nom;
+  document.getElementById('rot-display').textContent     = `${state.selectedRot}°`;
+  renderInventory();
+  log(`Sélectionné: ${item.nom} — cliquez sur la grille pour placer`, 'info');
+}
+
+function cancelPlacement() {
+  state.selectedItem = null;
+  state.selectedRot  = 0;
+  clearPreview();
+  document.getElementById('place-toolbar').style.display = 'none';
+  document.getElementById('place-hint').style.display    = 'none';
+  renderInventory();
+}
+
+function rotateSelected(delta) {
+  if (!state.selectedItem) return;
+  state.selectedRot = ((state.selectedRot + delta) + 360) % 360;
+  document.getElementById('rot-display').textContent = `${state.selectedRot}°`;
+  clearPreview();
+}
+
+function getRotatedShape(shape, angle) {
+  let newShape = JSON.parse(JSON.stringify(shape));
+  const rotations = (angle / 90) % 4;
+  for (let n = 0; n < rotations; n++) {
+    const h = newShape.length;
+    const w = newShape[0].length;
+    let rotated = Array.from({ length: w }, () => Array(h).fill(0));
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < w; c++) {
+        rotated[c][h - 1 - r] = newShape[r][c];
+      }
+    }
+    newShape = rotated;
+  }
+  return newShape;
+}
+
+function getActiveCells(forme, rotation, x, y) {
+  const shape = getRotatedShape(forme, rotation);
+  const cells = [];
+  for (let dr = 0; dr < shape.length; dr++)
+    for (let dc = 0; dc < shape[dr].length; dc++)
+      if (shape[dr][dc]) cells.push([y + dr, x + dc]);
+  return cells;
+}
+
+function isValidPlacement(forme, rotation, x, y) {
+  const cells = getActiveCells(forme, rotation, x, y);
+  return cells.every(([r, c]) => {
+    if (r < 0 || r >= currentGridSize || c < 0 || c >= currentGridSize) return false;
+    if (state.itemGrid[r][c] !== 0) return false;
+    if (state.containerGrid[r][c] === 0) return false;
+    return true;
+  });
+}
+
+/* ── Hover preview ──────────────────────────────────────── */
+function onCellHover(e) {
+    if (!state.selectedItem) return;
+
+    const r = parseInt(e.target.dataset.r);
+    const c = parseInt(e.target.dataset.c);
+
+    // 1. On efface tout ancien preview
+    clearPreview();
+
+    // 2. On calcule la forme tournée actuelle
+    const shape = getRotatedShape(state.selectedItem.forme || state.selectedItem.shape, state.selectedRot);
+
+    // 3. On parcourt les cellules actives de l'item
+    const newPreview = [];
+    for (let i = 0; i < shape.length; i++) {
+        for (let j = 0; j < shape[i].length; j++) {
+            if (shape[i][j] === 1) {
+                const nr = r + i;
+                const nc = c + j;
+
+                // On cherche la cellule correspondante dans le DOM
+                const cell = document.querySelector(`.cell[data-r="${nr}"][data-c="${nc}"]`);
+                if (cell) {
+                    // Vérification de validité (limites + container + collision)
+                    const isOutOfBounds = nr < 0 || nr >= currentGridSize || nc < 0 || nc >= currentGridSize;
+                    const isOutside     = !isOutOfBounds && state.containerGrid[nr][nc] === 0;
+                    const isOverlapping = !isOutOfBounds && state.itemGrid[nr][nc] !== 0;
+
+                    if (isOutOfBounds || isOutside || isOverlapping) {
+                        cell.classList.add('preview-warn'); // ROUGE
+                    } else {
+                        cell.classList.add('preview-ok');   // AMBRE
+                    }
+                    newPreview.push(cell);
+                }
+            }
+        }
+    }
+    state.previewCells = newPreview;
+}
+
+function onCellLeave() {
+  clearPreview();
+}
+
+function clearPreview() {
+  state.previewCells.forEach(c => {
+    c.classList.remove('preview-ok', 'preview-warn');
+  });
+  state.previewCells = [];
+}
+
+/* ==========================================================═
+   MENU CONTEXTUEL — Item placé sur la grille
+==========================================================═ */
+// ID de l'item actuellement ciblé par le menu
+let ctxItemId = null;
+
+function showItemMenu(e, itemId) {
+  ctxItemId = itemId;
+  const itData = state.itemsPlaced[itemId];
+  const nom    = itData?.item?.nom || `Item #${itemId}`;
+
+  const menu = document.getElementById('item-ctx-menu');
+  document.getElementById('ctx-item-name').textContent = nom;
+
+  // Positionner le menu près du curseur, en évitant les bords
+  const margin = 8;
+  let x = e.clientX + margin;
+  let y = e.clientY + margin;
+  if (x + 185 > window.innerWidth)  x = e.clientX - 185 - margin;
+  if (y + 130 > window.innerHeight) y = e.clientY - 130 - margin;
+
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+  menu.classList.add('open');
+}
+
+function closeItemMenu() {
+  document.getElementById('item-ctx-menu').classList.remove('open');
+  ctxItemId = null;
+}
+
+// Ferme le menu si on clique ailleurs
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('item-ctx-menu').contains(e.target)) {
+    closeItemMenu();
+  }
+});
+
+// ── Action : Déplacer (retire de la grille et entre en mode placement)
+async function startMoveItem() {
+  if (ctxItemId === null) return;
+  const itemId = ctxItemId;
+  const nom    = state.itemsPlaced[itemId]?.item?.nom || `Item #${itemId}`;
+  closeItemMenu();
+
+  try {
+    const res  = await fetch(`${API}/remove_item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: itemId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      // refreshState met à jour inventory depuis le backend
+      await refreshState();
+      // Récupère l'item depuis l'inventaire mis à jour et lance le placement
+      const item = inventory.find(i => i.id === itemId);
+      if (item) {
+        selectItemForPlacement(item);
+        log(`Déplacement: ${item.nom} — choisissez une nouvelle position`, 'info');
+      }
+    } else {
+      log(`Erreur: ${data.message}`, 'warn');
+    }
+  } catch(err) {
+    log('Erreur serveur lors du déplacement', 'err');
+  }
+}
+
+// ── Action : Remettre en inventaire (retire de la grille, retour stock)
+async function removeItemToInventory() {
+  if (ctxItemId === null) return;
+  const itemId = ctxItemId;
+  const nom    = state.itemsPlaced[itemId]?.item?.nom || `Item #${itemId}`;
+  closeItemMenu();
+
+  try {
+    const res  = await fetch(`${API}/remove_item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: itemId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      log(`'${nom}' remis en inventaire`, 'ok');
+      await refreshState();
+    } else {
+      log(`Erreur: ${data.message}`, 'warn');
+    }
+  } catch(err) {
+    log('Erreur serveur lors du retrait', 'err');
+  }
+}
+
+async function onCellClick(e) {
+  // Si le recuit est actif, rien faire
+  if (state.saRunning) return;
+
+  const r = parseInt(e.target.dataset.r);
+  const c = parseInt(e.target.dataset.c);
+
+  // ── Cas 1 : un item est en cours de placement → on le pose
+  if (state.selectedItem) {
+    const item = state.selectedItem;
+    if (!isValidPlacement(item.forme || item.shape, state.selectedRot, c, r)) {
+      log('Position invalide (hors container ou chevauchement)', 'warn');
+      return;
+    }
+    try {
+      const res  = await fetch(`${API}/place`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_id: item.id,
+          x: c, y: r,
+          rotation: state.selectedRot,
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        log(`Placé: ${item.nom} en (${c},${r})`, 'ok');
+        inventory = inventory.filter(i => i.id !== item.id);
+        cancelPlacement();
+        await refreshState();
+      } else {
+        log(`Erreur placement: ${data.message}`, 'warn');
+      }
+    } catch(err) {
+      log('Erreur serveur lors du placement', 'err');
+    }
+    return;
+  }
+
+  // ── Cas 2 : clic sur une cellule occupée → menu contextuel
+  const itemId = state.itemGrid[r]?.[c];
+  if (itemId) {
+    e.preventDefault();
+    e.stopPropagation(); // Empêche le listener document de fermer le menu immédiatement
+    showItemMenu(e, itemId);
+    return;
+  }
+
+  // ── Cas 3 : cellule vide sans item sélectionné → rien
+  closeItemMenu();
+}
+
+/* ==========================================================═
+   RACCOURCIS CLAVIER
+   R / r       → Rotation +90° pendant le placement
+   Escape      → Annuler le placement
+==========================================================═ */
+document.addEventListener('keydown', (e) => {
+  if (!state.selectedItem) return;
+  if (e.key === 'r' || e.key === 'R') {
+    rotateSelected(90);
+    // Re-déclencher le preview sur la cellule sous le curseur si dispo
+    const hovered = document.querySelector('.cell:hover');
+    if (hovered) hovered.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+  } else if (e.key === 'Escape') {
+    cancelPlacement();
+  }
+});
+
+/* ==========================================================═
+   RECUIT SIMULÉ — Appels API en boucle
+==========================================================═ */
+let saRunning = false;
+
+async function toggleSA() {
+  if (saRunning) {
+    stopSA();
+  } else {
+    startSA();
+  }
+}
+
+async function startSA() {
+  saRunning = true;
+  state.saRunning = true;
+  document.getElementById('btn-sa').textContent = '⏹ Stopper l\'Optimisation';
+  document.getElementById('btn-sa').classList.add('pulsing');
+  document.getElementById('sa-badge').classList.add('on');
+
+  // Reset du recuit côté backend
+  await fetch(`${API}/optimize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset: true, n_moves: 1 })
+  }).catch(() => {});
+
+  scoreChart.data.labels = [];
+  scoreChart.data.datasets[0].data = [];
+  scoreChart.data.datasets[1].data = [];
+  scoreChart.update();
+
+  log('Recuit Simulé démarré', 'info');
+  state.saIter = 0;
+  saLoop();
+}
+
+async function saLoop() {
+  if (!saRunning) return;
+
+  try {
+    const res  = await fetch(`${API}/optimize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ n_moves: 80 })
+    });
+    const data = await res.json();
+
+    // Mise à jour état
+    state.saT    = data.temperature;
+    state.saIter = data.iteration;
+
+    // Grille
+    if (data.grid_state) applyGridState(data.grid_state);
+
+    // Stats
+    updateSAStats(data);
+    updateScoreDisplay(data.score, data.base_power, data.synergy_bonus);
+
+    if (data.best_score > state.bestScore) {
+      state.bestScore = data.best_score;
+      bumpEl('sc-best', data.best_score.toFixed(1));
+    }
+
+    // Chart
+    pushChart(data.iteration, data.score, data.best_score);
+
+    // Synergies
+    if (data.synergies) renderSynergies(data.synergies);
+
+    renderGrid();
+
+    // Continuer si temperature > seuil et running
+    if (saRunning && data.sa_running !== false && data.temperature > 0.5) {
+      setTimeout(saLoop, 120);
+    } else {
+      stopSA();
+      log(`Optimisation terminée — Score: ${data.best_score}`, 'ok');
+    }
+
+  } catch(e) {
+    log('Erreur serveur — optimisation interrompue', 'err');
+    stopSA();
+  }
+}
+
+function stopSA() {
+  saRunning = false;
+  state.saRunning = false;
+  document.getElementById('btn-sa').textContent = '▶ Lancer l\'Optimisation';
+  document.getElementById('btn-sa').classList.remove('pulsing');
+  document.getElementById('sa-badge').classList.remove('on');
+}
+
+function updateSAStats(data) {
+  const pct = state.saT0 > 0 ? Math.min(100, (data.temperature / state.saT0) * 100) : 0;
+  document.getElementById('t-val').textContent = data.temperature > 0.5 ? data.temperature.toFixed(1) : '—';
+  document.getElementById('t-bar').style.width  = pct + '%';
+  document.getElementById('sa-iter').textContent = (data.iteration || 0).toLocaleString();
+  const total = (data.accepted || 0) + (data.rejected || 0);
+  document.getElementById('sa-rate').textContent = total > 0 ? ((data.accepted / total) * 100).toFixed(1) + '%' : '—';
+}
+
+/* ==========================================================═
+   SCORE ET AFFICHAGE
+==========================================================═ */
+async function calculateScore() {
+  try {
+    const res  = await fetch(`${API}/calculate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const data = await res.json();
+    updateScoreDisplay(data.total, data.base_power, data.synergy_bonus);
+    renderSynergies(data.synergies || []);
+    log(`Score recalculé: ${data.total} pts (base: ${data.base_power} + syn: ${data.synergy_bonus})`, 'info');
+  } catch(e) {
+    log('Mode démo — score calculé localement', 'info');
+  }
+}
+
+function updateScoreDisplay(total, base, syn) {
+  bumpEl('sc-total', (total || 0).toFixed(1));
+  bumpEl('sc-base',  (base  || 0).toFixed(1));
+  bumpEl('sc-syn',   (syn   || 0).toFixed(1));
+  document.getElementById('hdr-score').textContent = (total || 0).toFixed(0);
+}
+
+function renderSynergies(synList) {
+  const el = document.getElementById('syn-list');
+  if (!synList || !synList.length) {
+    el.innerHTML = '<div class="syn-empty">Aucune synergie détectée</div>';
+    return;
+  }
+  el.innerHTML = synList.map(s => `
+    <div class="syn-item">
+      <span class="syn-pair">${s.item_a} + ${s.item_b}</span>
+      <span class="syn-bonus">+${s.bonus.toFixed(1)}</span>
+    </div>`).join('');
+}
+
+/* ==========================================================═
+   ÉTAT — SYNC AVEC BACKEND
+==========================================================═ */
+async function refreshState() {
+  try {
+    const res  = await fetch(`${API}/state`);
+    const data = await res.json();
+
+    // Mise à jour du budget et des autres données UI depuis le serveur
+    updateUI(data);
+    applyGridState(data.grid_state);
+
+    inventory = data.inventory || [];
+
+    // ── Resynchronise selectedItem avec le nouvel objet de l'inventaire
+    // (l'id peut avoir changé si le même item a été acheté deux fois,
+    //  car buy_item génère id = offer_id * 100 + random)
+    if (state.selectedItem) {
+      const fresh = inventory.find(i => i.id === state.selectedItem.id);
+      if (fresh) {
+        state.selectedItem = fresh; // met à jour la référence
+      } else {
+        cancelPlacement();          // l'item n'existe plus dans l'inventaire
+      }
+    }
+
+    renderInventory();
+    renderGrid();
+    updateScoreDisplay(data.score?.total, data.score?.base_power, data.score?.synergy_bonus);
+    renderSynergies(data.score?.synergies || []);
+
+    if (data.sa_history?.length) {
+      data.sa_history.forEach(h => pushChart(h.iteration, h.score, h.best_score));
+    }
+  } catch(e) {
+    log('Erreur lors de la synchronisation avec le serveur', 'err');
+  }
+}
+
+function applyGridState(gs) {
+  if (!gs) return;
+  if (gs.item_grid)      state.itemGrid      = gs.item_grid;
+  if (gs.container_grid) state.containerGrid = gs.container_grid;
+
+  if (gs.items_placed) {
+    state.itemsPlaced = {};
+    let colorIdx = 0;
+    Object.entries(gs.items_placed).forEach(([id, data]) => {
+      state.itemsPlaced[+id] = data;
+      if (!state.colorMap[+id]) {
+        state.colorMap[+id] = colorIdx++ % ITEM_COLORS.length;
+      }
+    });
+  }
+  if (gs.containers) state.containers = gs.containers;
+}
+
+/* ==========================================================═
+   CHART
+==========================================================═ */
+function pushChart(iter, score, best) {
+  const MAX = 120;
+  scoreChart.data.labels.push(iter);
+  scoreChart.data.datasets[0].data.push(score);
+  scoreChart.data.datasets[1].data.push(best);
+  if (scoreChart.data.labels.length > MAX) {
+    scoreChart.data.labels.shift();
+    scoreChart.data.datasets.forEach(d => d.data.shift());
+  }
+  scoreChart.update('none');
+}
+
+/* ==========================================================═
+   UTILITAIRES UI
+==========================================================═ */
+/* ==========================================================═
+   MISE À JOUR DE L'INTERFACE DEPUIS LES DONNÉES SERVEUR
+   Reçoit un objet gameState avec au minimum { budget }
+==========================================================═ */
+function updateUI(gameState) {
+  // Mise à jour du budget depuis la valeur serveur (source de vérité)
+  if (gameState.budget !== undefined) {
+    const el = document.getElementById('budget-val');
+    if (el) el.textContent = gameState.budget;
+  }
+  // Mise à jour du total de cases depuis GRID_SIZE² (source de vérité : models.py)
+  if (gameState.grid_size !== undefined) {
+    const el = document.getElementById('grid-total');
+    if (el) el.textContent = gameState.grid_size * gameState.grid_size;
+  }
+}
+
+function bumpEl(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = val;
+  el.classList.remove('bump');
+  void el.offsetWidth;
+  el.classList.add('bump');
+}
+
+function log(msg, type = 'info') {
+  const t   = document.getElementById('log');
+  const now = new Date();
+  const ts  = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  const s   = document.createElement('span');
+  s.className = 'll';
+  s.innerHTML = `<span class="lt">[${ts}]</span> <span class="l${type[0]}">${msg}</span>`;
+  t.appendChild(s);
+  t.scrollTop = t.scrollHeight;
+  while (t.children.length > 60) t.removeChild(t.firstChild);
+}
+
+/* ==========================================================═
+   RESET
+==========================================================═ */
+async function resetGame() {
+  stopSA();
+  try { await fetch(`${API}/reset`, { method: 'POST' }); } catch(e) {}
+  state.itemGrid      = Array.from({ length: currentGridSize }, () => Array(currentGridSize).fill(0));
+  state.containerGrid = Array.from({ length: currentGridSize }, () => Array(currentGridSize).fill(0));
+  state.itemsPlaced   = {};
+  state.containers    = {};
+  state.colorMap      = {};
+  state.bestScore     = 0;
+  inventory           = [];
+  cancelPlacement();
+  renderGrid();
+  renderInventory();
+  // Récupère le budget réinitialisé depuis le serveur
+  refreshState();
+  updateScoreDisplay(0, 0, 0);
+  renderSynergies([]);
+  document.getElementById('market-list').innerHTML =
+    `<div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--ink-ghost);text-align:center;padding:20px 0;">Cliquez "Nouveau Marché"</div>`;
+  scoreChart.data.labels = [];
+  scoreChart.data.datasets.forEach(d => d.data = []);
+  scoreChart.update();
+  document.getElementById('grid-used').textContent = '0';
+  document.getElementById('t-val').textContent = '—';
+  document.getElementById('t-bar').style.width = '0%';
+  document.getElementById('sa-iter').textContent = '0';
+  document.getElementById('sc-best').textContent = '0';
+  document.getElementById('hdr-score').textContent = '0';
+  log('Partie réinitialisée', 'warn');
+}
+
+/* ==========================================================═
+   INIT — La grille est construite après récupération de grid_size
+   via /state, garantissant que currentGridSize est la seule
+   source de vérité pour les dimensions.
+==========================================================═ */
+window.onload = async function() {
+  try {
+    // ── 1. Charge SYNERGY_TABLE depuis le backend (source de vérité unique)
+    //       avant tout rendu pour que hasSyn() et les tooltips soient corrects
+    await loadSynergyTable();
+
+    // ── 2. Récupère l'état initial (grid_size, budget, grille…)
+    const res  = await fetch(`${API}/state`);
+    const data = await res.json();
+
+    // grid_size reçu du serveur : seule source de vérité
+    currentGridSize = data.grid_size;
+    state.itemGrid      = Array.from({ length: currentGridSize }, () => Array(currentGridSize).fill(0));
+    state.containerGrid = Array.from({ length: currentGridSize }, () => Array(currentGridSize).fill(0));
+
+    // Construit la grille HTML avec la bonne taille
+    buildGridHTML();
+    renderGrid();
+    renderInventory();
+
+    // Budget et grid_total depuis le serveur (source de vérité : Store.BUDGET_INITIAL)
+    updateUI(data);
+
+    log('Connexion Flask établie ✓', 'ok');
+    log('Achetez un Container puis des Items pour commencer', 'info');
+    refreshState();
+  } catch(e) {
+    // Flask injoignable : affiche un message bloquant
+    document.body.innerHTML = `
+      <div style="
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        height:100vh;gap:16px;font-family:'Share Tech Mono',monospace;
+        background:#f0eeea;color:#1c1a17;
+      ">
+        <div style="font-size:2rem;">⚠</div>
+        <div style="font-size:1rem;font-weight:bold;color:#c0392b;">Serveur Flask introuvable</div>
+        <div style="font-size:.75rem;color:#8a8278;">Lancez le backend : <code style="background:#e8e5df;padding:3px 8px;border-radius:4px;">python app.py</code></div>
+        <div style="font-size:.7rem;color:#c4bfb8;">puis rechargez cette page</div>
+        <button onclick="location.reload()" style="
+          margin-top:8px;padding:9px 22px;background:#e8890a;border:none;border-radius:5px;
+          color:#fff;font-family:'Share Tech Mono',monospace;font-size:.7rem;
+          letter-spacing:.08em;cursor:pointer;
+        ">↺ Réessayer</button>
+      </div>`;
+  }
+};
+</script>
+</body>
+</html>

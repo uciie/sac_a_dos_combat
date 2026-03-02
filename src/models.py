@@ -125,8 +125,6 @@ class Container:
     position_x: int = 0  # Placé dynamiquement lors de l'achat
     position_y: int = 0
 
-    _next_id: int = field(default=1, init=False, repr=False)
-
     def cells(self) -> set[tuple[int, int]]:
         """
         Retourne l'ensemble des cases (row, col) couvertes par ce container.
@@ -197,15 +195,23 @@ class Item:
 
     def get_rotated_shape(self) -> np.ndarray:
         """
-        Retourne la matrice de l'item après application de la rotation courante.
+        Retourne la matrice de l'item après application de la rotation courante,
+        ROGNÉE pour supprimer les lignes/colonnes vides en bordure.
 
         k rotations de 90° anti-horaire via np.rot90.
         k=0->0°, k=1->90°, k=2->180°, k=3->270°
 
+        Le rognage garantit que la bounding box est toujours "serrée" :
+        placer un item en (x, y) aligne sa première cellule occupée sur (x, y).
+
         Complexité : O(h * w) - proportionnel à la bounding box.
         """
         k = (self.rotation // 90) % 4
-        return np.rot90(self.forme, k=k)
+        shape = np.rot90(self.forme, k=k)
+        # Rogner les lignes/colonnes vides en bordure (bounding box serrée)
+        rows = np.any(shape, axis=1)
+        cols = np.any(shape, axis=0)
+        return shape[np.ix_(rows, cols)]
 
     def rotate_cw(self) -> "Item":
         """Retourne un nouvel Item avec rotation de +90° (sens horaire)."""
@@ -255,7 +261,7 @@ class Item:
             "id": self.id, "nom": self.nom, "prix": self.prix,
             "puissance_base": self.puissance_base, "tags": self.tags,
             "forme": self.get_rotated_shape().tolist(),
-            "rotation": self.rotation,
+            "rotation": 0,  # forme déjà tournée → le JS repart à 0° sans double-rotation
         }
 
     @classmethod
@@ -271,6 +277,15 @@ class Item:
             tags=template.get("tags", []),
         )
 
+    def print_item(self):
+        """Affiche la forme de l'item pour le debug."""
+        shape = self.get_rotated_shape()
+        print(f"Item '{self.nom}' (rotation {self.rotation}°):")
+        for r in range(shape.shape[0]):
+            row = ""
+            for c in range(shape.shape[1]):
+                row += " X " if shape[r, c] == 1 else " . "
+            print(row)
 
 # ==============================================================================
 # 4. CLASSE BACKPACKMANAGER
@@ -282,7 +297,7 @@ class BackpackManager:
       - La grille globale (GRID_SIZE x GRID_SIZE) avec les items placés
       - Les containers achetés (zones autorisées)
       - Le placement/retrait d'items
-      - La fonction objectif f(config) = \sum puissances + \sum synergies
+      - La fonction objectif f(config) = sum(puissances) + sum(synergies)
 
     Encodage de la grille principale :
       grid[r][c] = 0        -> case vide
@@ -367,7 +382,7 @@ class BackpackManager:
         items_to_remove = set()
         for (r, c) in freed_cells:
             if self.grid[r][c] != 0:
-                items_to_remove.add(self.grid[r][c])
+                items_to_remove.add(int(self.grid[r][c]))  # cast np.int64 → int natif
         for item_id in items_to_remove:
             self.remove_item(item_id)
 
@@ -402,27 +417,36 @@ class BackpackManager:
         shape = item.get_rotated_shape()
         h, w = shape.shape
 
-        for dr in range(h):
-            for dc in range(w):
-                if shape[dr, dc] == 0:
-                    continue  # Case inactive -> skip
-                
-                # Coordonnées globales de la case à vérifier
-                r, c = y + dr, x + dc
-
-                # 1. Dépassement de la grille globale
-                if r < 0 or r >= GRID_SIZE or c < 0 or c >= GRID_SIZE:
-                    return False
-
-                # 2. Chevauchement avec un item existant
-                if self.grid[r][c] != 0:
-                    return False
-
-                # 3. CONDITION CRITIQUE : la case doit être dans un container acheté
-                if self.container_grid[r][c] == 0:
-                    return False
-
+        for r in range(h):
+            for c in range(w):
+                if shape[r, c] == 1:
+                    row, col = y + r, x + c   # row = y + r, col = x + c
+                    
+                    # 1. Vérification des limites de la grille globale
+                    if not (0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE):
+                        return False
+                    
+                    # 2. Vérification de la présence d'un container
+                    if self.container_grid[row, col] == 0: 
+                        return False
+                        
+                    # 3. Vérification des chevauchements avec d'autres items
+                    if self.grid[row][col] != 0:
+                        return False
         return True
+    
+    def print_grid(self):
+        """Affiche la grille d'items pour le debug."""
+        if not isinstance(self.grid, (list, np.ndarray)):
+            print(f"ALERTE : self.grid est de type {type(self.grid)} avec la valeur {self.grid}")
+            return
+        print(f"Shape de la grille : {len(self.grid)}x{self.grid.shape[1] if hasattr(self.grid, 'shape') else 0}")
+        for r in range(GRID_SIZE):
+            row = ""
+            for c in range(GRID_SIZE):
+                cell = self.grid[r][c]
+                row += f"{cell:3}" if cell != 0 else " . "
+            print(row)
 
     def place_item(self, item: Item, x: int, y: int) -> bool:
         """
@@ -431,6 +455,11 @@ class BackpackManager:
 
         Returns True si placé avec succès.
         """
+        if not isinstance(self.grid, (list, np.ndarray)):
+            # Ce print s'affichera dans votre console Python
+            print(f"ERREUR CRITIQUE - grid est un {type(self.grid)} (valeur: {self.grid})")
+            # On réinitialise la grille pour éviter le crash
+            self.grid = np.zeros((GRID_SIZE, GRID_SIZE), dtype=int)
         if not self.is_valid(item, x, y):
             return False
 
@@ -438,9 +467,9 @@ class BackpackManager:
         for dr in range(shape.shape[0]):
             for dc in range(shape.shape[1]):
                 if shape[dr, dc] == 1:
-                    self.grid[y + dr][x + dc] = item.id
+                    self.grid[y + dr][x + dc] = int(item.id)  # cast → int natif pour éviter np.int64 dans la grille
 
-        self.items_placed[item.id] = (item, x, y)
+        self.items_placed[int(item.id)] = (item, x, y)  # clé toujours int natif
         return True
 
     def remove_item(self, item_id: int) -> bool:
@@ -452,7 +481,12 @@ class BackpackManager:
         # Vérifier que l'item existe
         if item_id not in self.items_placed:
             return False
-        self.grid[self.grid == item_id] = 0
+        item, x, y = self.items_placed[item_id]
+        shape = item.get_rotated_shape()
+        for dr in range(shape.shape[0]):
+            for dc in range(shape.shape[1]):
+                if shape[dr, dc] == 1:
+                    self.grid[y + dr, x + dc] = 0
         # Supprimer de items_placed
         del self.items_placed[item_id]
         return True
@@ -489,7 +523,7 @@ class BackpackManager:
         """
         Calcule la fonction objectif complète :
 
-            f = \sum puissance_base(i) + \sum bonus_synergie(i, j)
+            f = sum(puissance_base(i)) + sum(bonus_synergie(i, j))
 
         Le bonus s'active si deux items i et j ont des cases adjacentes
         (voisinage orthogonal 4-directions) ET des tags compatibles.
@@ -528,7 +562,7 @@ class BackpackManager:
 
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
-                item_id = self.grid[r][c]
+                item_id = int(self.grid[r][c])  # cast np.int64 → int natif (clés de items_placed)
                 if item_id == 0:
                     continue
 
@@ -550,7 +584,7 @@ class BackpackManager:
                     if nr < 0 or nr >= GRID_SIZE or nc < 0 or nc >= GRID_SIZE:
                         continue
 
-                    neighbor_id = self.grid[nr][nc]
+                    neighbor_id = int(self.grid[nr][nc])  # cast np.int64 → int natif
                     # Ignorer les cases vides et éviter le double-comptage (i,j) vs (j,i)
                     if neighbor_id == 0 or neighbor_id == item_id:
                         continue
@@ -616,6 +650,20 @@ class BackpackManager:
         new._item_counter = self._item_counter
         new._container_counter = self._container_counter
         return new
+    
+    def rebuild_grid(self):
+        """Reconstruit entièrement la matrice grid à partir de items_placed."""
+        # On réinitialise la grille à zéro
+        self.grid = np.zeros((GRID_SIZE, GRID_SIZE), dtype=int)
+        # On replace chaque item enregistré
+        for iid, (item, x, y) in self.items_placed.items():
+            shape = item.get_rotated_shape()
+            for dr in range(shape.shape[0]):
+                for dc in range(shape.shape[1]):
+                    if shape[dr, dc] == 1:
+                        # On s'assure que les coordonnées sont dans les limites
+                        if 0 <= y + dr < GRID_SIZE and 0 <= x + dc < GRID_SIZE:
+                            self.grid[y + dr, x + dc] = iid
 
 
 # ==============================================================================
@@ -639,6 +687,7 @@ class Store:
         self.budget: int = self.BUDGET_INITIAL
         self.current_offers: list[dict] = [] # Offres du tour courant
         self._offer_counter: int = 1 # ID d'offre global
+        self._item_id_counter: int = 1 # Compteur d'ID unique pour les items achetés
 
     # -- Génération de marché ------------------------------------
 
@@ -729,13 +778,14 @@ class Store:
             return None
 
         item = Item(
-            id=offer["offer_id"] * 100 + random.randint(1, 99),
+            id=self._item_id_counter,
             nom=offer["nom"],
             forme=np.array(offer["forme"], dtype=int),
             prix=offer["prix"],
             puissance_base=offer["puissance"],
             tags=offer["tags"],
         )
+        self._item_id_counter += 1
         return item
 
     def buy_container(self, offer_id: int) -> Optional[Container]:
@@ -770,3 +820,143 @@ class Store:
 # 6. RECUIT SIMULÉ (Simulated Annealing) - Moteur d'optimisation
 # ==============================================================================
 
+import math
+
+class SimulatedAnnealing:
+    """
+    Métaheuristique de Recuit Simulé adaptée au BackpackManager.
+
+    Opérateurs de voisinage :
+      - MOVE    : déplacer un item vers une position aléatoire valide
+      - ROTATE  : faire pivoter un item de 90° et tenter de le replacer
+      - SWAP    : échanger les positions de deux items placés
+      - REMOVE  : retirer un item (libère de la place pour d'autres)
+
+    Critère d'acceptation (Metropolis) :
+      P(accepter) = exp(-delta_f / T)   si delta_f < 0
+                  = 1                   si delta_f >= 0
+
+    Paramètres typiques :
+      T0    = 500 - 2000  (dépend de l'échelle des scores)
+      alpha = 0.99 - 0.999
+      n_iter = 100 - 10000 par appel API
+    """
+
+    def __init__(self, manager: BackpackManager, items_available: list[Item]):
+        self.manager    = manager
+        self.available  = items_available   # Items achetés mais pas encore placés
+        self.T          = 1000.0
+        self.alpha      = 0.995
+        self.iteration  = 0
+        self.best_score = manager.calculate_score()["total"]
+        self.best_state = manager.clone()
+        self.history: list[dict] = []       # Historique pour le graphique
+
+    def step(self, n_moves: int = 50) -> dict:
+        """
+        Effectue n_moves itérations du recuit et retourne l'état courant.
+        Conçu pour être appelé répétitivement via l'API.
+        """
+        current_score = self.manager.calculate_score()["total"]
+
+        for _ in range(n_moves):
+            op = random.choice(["MOVE", "ROTATE", "SWAP", "ADD"])
+            delta = self._apply_operator(op, current_score)
+            current_score += delta
+
+            # Mémoriser le meilleur état
+            if current_score > self.best_score:
+                self.best_score = current_score
+                self.best_state = self.manager.clone()
+
+            self.T      *= self.alpha
+            self.iteration += 1
+
+        score_data = self.manager.calculate_score()
+        snapshot = {
+            "iteration":    self.iteration,
+            "temperature":  round(self.T, 2),
+            "score":        score_data["total"],
+            "best_score":   round(self.best_score, 2),
+            "base_power":   score_data["base_power"],
+            "synergy_bonus":score_data["synergy_bonus"],
+        }
+        self.history.append(snapshot)
+        return snapshot
+
+    def _apply_operator(self, op: str, current_score: float) -> float:
+        """Applique un opérateur de voisinage et retourne delta score.
+        
+        :param op: str - type d'opération ("MOVE", "ROTATE", "SWAP", "ADD")
+        :param current_score: float - score avant l'opération
+        :return: float - changement de score (delta)
+        """
+        mgr = self.manager
+
+        # Sauvegarde de l'état partiel pour annulation rapide
+        old_items_placed = copy.deepcopy(mgr.items_placed)
+        old_available = list(self.available)
+        
+        delta = 0.0
+        executed = False
+
+        if op == "MOVE" and mgr.items_placed:
+            iid = random.choice(list(mgr.items_placed.keys()))
+            item, ox, oy = mgr.items_placed[iid]
+            mgr.remove_item(iid)
+            pos = mgr.valid_positions(item)
+            if pos:
+                nx, ny = random.choice(pos)
+                mgr.place_item(item, nx, ny)
+                executed = True
+
+        elif op == "ROTATE" and mgr.items_placed:
+            iid = random.choice(list(mgr.items_placed.keys()))
+            item, ox, oy = mgr.items_placed[iid]
+            mgr.remove_item(iid)
+            rotated = item.rotate_cw()
+            pos = mgr.valid_positions(rotated)
+            if pos:
+                nx, ny = random.choice(pos)
+                mgr.place_item(rotated, nx, ny)
+                executed = True
+
+        elif op == "ADD" and self.available:
+            item = random.choice(self.available)
+            pos = mgr.valid_positions(item)
+            if pos:
+                nx, ny = random.choice(pos)
+                mgr.place_item(item, nx, ny)
+                self.available.remove(item)
+                executed = True
+
+        elif op == "REMOVE" and mgr.items_placed:
+            iid = random.choice(list(mgr.items_placed.keys()))
+            item, ox, oy = mgr.items_placed[iid]
+            mgr.remove_item(iid)
+            self.available.append(item)
+            executed = True
+
+        if not executed:
+            return 0.0
+
+        new_score = mgr.calculate_score()["total"]
+        delta = new_score - current_score
+
+        # CRITÈRE DE METROPOLIS (Maximisation)
+        if delta >= 0 or random.random() < math.exp(delta / max(self.T, 0.01)):
+            return delta
+        else:
+            # ROLLBACK
+            self.manager.items_placed = old_items_placed
+            self.available = old_available
+            # Important : il faut aussi restaurer la grille physique du manager ici
+            self.manager.rebuild_grid() 
+            return 0.0
+
+    def restore_best(self):
+        """Restaure le meilleur état trouvé."""
+        self.manager.grid           = self.best_state.grid.copy()
+        self.manager.container_grid = self.best_state.container_grid.copy()
+        self.manager.items_placed   = copy.deepcopy(self.best_state.items_placed)
+        self.manager.containers_owned = copy.deepcopy(self.best_state.containers_owned)
