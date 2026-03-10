@@ -838,7 +838,7 @@ header {
     <div>
       <div class="sec"><div class="sec-dot"></div>Marché</div>
       <div style="display:flex;gap:6px;margin-top:10px;margin-bottom:10px;">
-        <button class="btn btn-amber" onclick="loadMarket()">⬡ Nouveau Marché</button>
+        <button class="btn btn-amber" onclick="loadMarket()">⬡ Nouveau Marché (10🪙)</button>
       </div>
       <div class="market-list" id="market-list">
         <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--ink-ghost);text-align:center;padding:20px 0;">
@@ -1335,27 +1335,38 @@ function renderLegend() {
 ==========================================================═ */
 async function loadMarket() {
   try {
-    const res  = await fetch(`${API}/market`);
+    // On appelle la nouvelle route POST
+    const res  = await fetch(`${API}/refresh_market`, { method: 'POST' });
     const data = await res.json();
-    renderMarket(data.offers);
-    updateUI({ budget: data.budget });
-    log('Nouveau marché généré', 'ok');
+    
+    if (data.success) {
+      renderMarket(data.offers);
+      updateUI({ budget: data.budget });
+      log('Nouveau marché généré (-10🪙)', 'ok');
+    } else {
+      log(data.message, 'warn');
+    }
   } catch(e) {
-    log('Erreur serveur — vérifiez que Flask tourne sur le port 5000', 'err');
+    log('Erreur lors du rafraîchissement du marché', 'err');
   }
 }
 
 function renderMarket(offers) {
   const el = document.getElementById('market-list');
   el.innerHTML = '';
+  
   offers.forEach(offer => {
+    const isSold = offer.sold === true;
+    
     const card = document.createElement('div');
-    card.className = `market-card type-${offer.type}${!offer.affordable ? ' cant-afford' : ''}`;
+    card.className = `market-card type-${offer.type}${(!offer.affordable || isSold) ? ' cant-afford' : ''}`;
 
-    const priceClass = offer.affordable ? '' : 'too-expensive';
+    const btnState = isSold ? 'disabled' : (!offer.affordable ? 'disabled' : '');
+    const btnText = isSold ? 'ÉPUISÉ' : `Acheter pour ${offer.prix}🪙`;
+
     let tagsHTML = '';
     if (offer.tags) {
-      tagsHTML = offer.tags.map(t => `<span class="tag tag-${t}" style="">${t}</span>`).join('');
+      tagsHTML = offer.tags.map(t => `<span class="tag tag-${t}">${t}</span>`).join('');
     }
 
     let shapeHTML = '';
@@ -1378,14 +1389,13 @@ function renderMarket(offers) {
     card.innerHTML = `
       <div class="mc-head">
         <span class="mc-name">${offer.nom}</span>
-        <span class="mc-price ${priceClass}">${offer.prix}🪙</span>
+        <span class="mc-price ${!offer.affordable && !isSold ? 'too-expensive' : ''}">${offer.prix}🪙</span>
       </div>
       ${offer.tags ? `<div class="mc-tags">${tagsHTML}</div>` : ''}
       ${shapeHTML}
       ${metaHTML}
-      <button class="mc-buy-btn" ${!offer.affordable ? 'disabled' : ''}
-              onclick="buyOffer(${offer.offer_id})">
-        Acheter pour ${offer.prix}🪙
+      <button class="mc-buy-btn" ${btnState} onclick="buyOffer(${offer.offer_id})">
+        ${btnText}
       </button>`;
 
     // ── Tooltip synergies : items uniquement (les containers n'ont pas de tags)
@@ -1414,12 +1424,15 @@ async function buyOffer(offerId) {
     const data = await res.json();
 
     if (data.success) {
-      // Le budget est mis à jour depuis la réponse serveur (source de vérité)
       updateUI({ budget: data.budget });
       log(`Acheté: ${data.message}`, 'ok');
-      // Mémorise le nom de l'item en cours de sélection avant le refresh
-      // (refreshState resynchronisera state.selectedItem par id)
       await refreshState();
+      
+      // AJOUT : Re-charger le marché actuel pour voir le statut "ÉPUISÉ"
+      const marketRes = await fetch(`${API}/market`);
+      const marketData = await marketRes.json();
+      renderMarket(marketData.offers);
+      
     } else {
       log(`Échec: ${data.message}`, 'warn');
     }

@@ -116,16 +116,42 @@ def get_market():
     }
     """
     store = game_state["store"]
-    offers = store.generate_market()
 
     # Mettre à jour le flag affordable selon le budget actuel
-    for offer in offers:
+    for offer in store.current_offers:
         offer["affordable"] = store.budget >= offer["prix"]
 
     return jsonify({
         "budget": store.budget,
-        "offers": offers,
+        "offers": store.current_offers,
     })
+
+@app.route("/refresh_market", methods=["POST"])
+def refresh_market():
+    """Génère un nouveau marché contre 10 pièces d'or."""
+    store = game_state["store"]
+    REFRESH_COST = 10
+    
+    # Si le magasin est vide (premier tour de jeu), c'est gratuit !
+    is_free = len(store.current_offers) == 0
+    
+    if not is_free and store.budget < REFRESH_COST:
+        return jsonify({"success": False, "message": "Fonds insuffisants pour actualiser"}), 400
+        
+    if not is_free:
+        store.budget -= REFRESH_COST
+        
+    offers = store.generate_market()
+    
+    for offer in offers:
+        offer["affordable"] = store.budget >= offer["prix"]
+        offer["sold"] = False # Initialiser à non vendu
+        
+    return jsonify({
+        "success": True,
+        "budget": store.budget,
+        "offers": offers,
+})
 
 
 @app.route("/state", methods=["GET"])

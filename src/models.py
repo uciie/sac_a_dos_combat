@@ -772,10 +772,12 @@ class Store:
         """
         # Rechercher l'offre correspondante
         offer = next((o for o in self.current_offers if o["offer_id"] == offer_id), None)
-        if offer is None or offer["type"] != "item":
+        if offer is None or offer["type"] != "item" or offer.get("sold", False):    
             return None
         if not self.spend(offer["prix"]):
             return None
+
+        offer["sold"] = True 
 
         item = Item(
             id=self._item_id_counter,
@@ -795,10 +797,12 @@ class Store:
         """
         # Rechercher l'offre correspondante
         offer = next((o for o in self.current_offers if o["offer_id"] == offer_id), None)
-        if offer is None or offer["type"] != "container":
+        if offer is None or offer["type"] != "container" or offer.get("sold", False): 
             return None
         if not self.spend(offer["prix"]):
             return None
+        
+        offer["sold"] = True 
 
         container = Container(
             id=0,  # Sera assigné par BackpackManager.add_container()
