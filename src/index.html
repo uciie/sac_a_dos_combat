@@ -929,8 +929,15 @@ header {
     </div>
 
     <div>
-      <div class="sec"><div class="sec-dot"></div>Recuit Simulé</div>
+      <div class="sec"><div class="sec-dot"></div>Moteur d'Optimisation</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+        
+        <select id="algo-select" style="padding: 7px; background: var(--bg-inset); border: 1px solid var(--border); font-family: 'Share Tech Mono', monospace; color: var(--ink); border-radius: 4px;">
+            <option value="SA">Recuit Simulé (Classique)</option>
+            <option value="GA">Algorithme Génétique (Sans ML)</option>
+            <option value="GA_ML">Algo Génétique + Machine Learning</option>
+        </select>
+
         <button class="btn btn-amber" id="btn-sa" onclick="toggleSA()">▶ Lancer l'Optimisation</button>
         <div class="temp-card">
           <div class="tr"><span class="tr-lbl">🌡 Température</span><span class="tr-val" id="t-val">—</span></div>
@@ -1792,10 +1799,11 @@ async function startSA() {
   document.getElementById('sa-badge').classList.add('on');
 
   // Reset du recuit côté backend
+  const algo = document.getElementById('algo-select').value; 
   await fetch(`${API}/optimize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reset: true, n_moves: 1 })
+    body: JSON.stringify({ reset: true, n_moves: 1, algorithm: algo })
   }).catch(() => {});
 
   scoreChart.data.labels = [];
@@ -1811,11 +1819,12 @@ async function startSA() {
 async function saLoop() {
   if (!saRunning) return;
 
+  const algo = document.getElementById('algo-select').value;
   try {
     const res  = await fetch(`${API}/optimize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ n_moves: 80 })
+      body: JSON.stringify({ n_moves: 40, algorithm: algo })
     });
     const data = await res.json();
 

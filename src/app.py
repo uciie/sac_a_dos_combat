@@ -20,12 +20,16 @@ from flask.json.provider import DefaultJSONProvider
 import os
 import random
 import numpy as np
+import copy
 
 from models import (
     BackpackManager, Store, Item, Container,
     SimulatedAnnealing, ITEM_CATALOGUE, CONTAINER_CATALOGUE, GRID_SIZE,
     SYNERGY_TABLE
 )
+from ml_surrogate import NNSurrogate
+from models_ga import GeneticAlgorithmML
+
 
 # ===================================================================
 # ENCODEUR JSON PERSONNALISÉ
@@ -55,6 +59,14 @@ app = Flask(__name__, static_folder="static")
 app.json_provider_class = NumpyJSONProvider
 app.json = NumpyJSONProvider(app)
 CORS(app)  # Autoriser les requêtes cross-origin (dev)
+
+# Chargement du modèle de marchine learning
+global_nn_model = NNSurrogate(len(ITEM_CATALOGUE))
+if os.path.exists("nn_surrogate.pkl"):
+    global_nn_model.load("nn_surrogate.pkl")
+    print("Modèle Machine Learning chargé avec succès !")
+else:
+    print("ATTENTION : nn_surrogate.pkl introuvable. Lancez experiments.py pour l'entraîner.")
 
 # ── État global de la session de jeu ────────────────────────────
 # Dans une vraie application, cet état serait en session/DB par joueur.
@@ -372,36 +384,60 @@ def optimize():
     data    = request.get_json() or {}
     n_moves = data.get("n_moves", 50)
     do_reset = data.get("reset", False)
+    algorithm = data.get("algorithm", "SA") #Récupère l'algorithme sélectionné
 
     mgr = game_state["manager"]
 
     # Initialiser ou réinitialiser le moteur SA
     if game_state["sa_engine"] is None or do_reset:
         available_copy = [it for it in game_state["inventory"]]
-        game_state["sa_engine"] = SimulatedAnnealing(mgr, available_copy)
+        
+        if algorithm == "SA":
+            game_state["sa_engine"] = SimulatedAnnealing(mgr, available_copy)
+        elif algorithm == "GA":
+            # GA classique avec un "faux" modèle non entraîné (filtre désactivé)
+            dummy_model = NNSurrogate(len(ITEM_CATALOGUE)) 
+            game_state["sa_engine"] = GeneticAlgorithmML(mgr, available_copy, dummy_model)
+        elif algorithm == "GA_ML":
+            # GA avec le vrai modèle ML
+            game_state["sa_engine"] = GeneticAlgorithmML(mgr, available_copy, global_nn_model)
+
         game_state["sa_history"] = []
         game_state["sa_running"] = True
 
-    sa = game_state["sa_engine"]
+    engine = game_state["sa_engine"]
 
-    # Forcer la température si demandé
-    if "temperature" in data:
-        sa.T = float(data["temperature"])
+    if algorithm == "SA":
+        snapshot = engine.step(n_moves=n_moves)
+        if engine.T < 0.5:
+            game_state["sa_running"] = False
+            engine.restore_best()
 
-    # Exécuter les itérations
-    snapshot = sa.step(n_moves=n_moves)
+    if algorithm == "SA":
+        snapshot = engine.step(n_moves=n_moves)
+        if engine.T < 0.5:
+            game_state["sa_running"] = False
+            engine.restore_best()
+    else:
+        # Pour le GA, on fait quelques générations par appel (n_moves est divisé pour l'animation)
+        snapshot = engine.step(generations=max(1, n_moves // 10))
+        
+        # Astuce UI : on fait semblant que la "température" baisse pour la barre de progression web
+        fake_temp = max(0, 1000 - (engine.iteration * 10)) 
+        snapshot["temperature"] = fake_temp
+        
+        if engine.iteration > 100: # Arrêt après 100 générations
+            game_state["sa_running"] = False
+            # On applique la meilleure config trouvée sur la grille principale
+            game_state["manager"].grid = engine.best_manager.grid.copy()
+            game_state["manager"].items_placed = copy.deepcopy(engine.best_manager.items_placed)
+
     game_state["sa_history"].append(snapshot)
-
-    # Stopper si la température est trop basse
-    if sa.T < 0.5:
-        game_state["sa_running"] = False
-        sa.restore_best()
-
     score_data = mgr.calculate_score()
 
     return jsonify({
         **snapshot,
-        "grid_state": mgr.get_grid_state(),
+        "grid_state": mgr.get_grid_state() if algorithm == "SA" else engine.best_manager.get_grid_state(),
         "synergies":  score_data.get("synergies", []),
         "sa_running": game_state["sa_running"],
     })
