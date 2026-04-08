@@ -21,6 +21,26 @@ Le projet s'inscrit dans la catégorie du **problème du sac à dos multidimensi
 
 -----
 
+## Instructions d’installation de l'environnement
+```bash
+python3 -m venv venv
+# Mac/ Linux 
+source venv/bin/activate
+# Windows 
+venv\Scripts\activate
+
+pip install flask flask-cors numpy torch
+```
+-----
+
+## Visualisation du problème 
+1. Exécuter le fichier `src/app.py`
+```bash
+python3 app.py
+```
+2. Ouvrir le fichier `src/index.html`
+-----
+
 ## Équipe
 
 | Membre | GitHub | Numéro Étudiant | 
@@ -31,10 +51,3 @@ Le projet s'inscrit dans la catégorie du **problème du sac à dos multidimensi
 -----
 
 > Projet universitaire M1 MIAGE 2025-2026 — Université Paris Nanterre.
-
-python3 -m venv venv
-
-source venv/bin/activate
-
-pip install flask flask-cors numpy torch
-
