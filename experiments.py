@@ -1,10 +1,17 @@
+import sys
+import os
+# Cette ligne dit à Python : "Considère le dossier 'src' comme un dossier principal pour chercher les imports"
+sys.path.append(os.path.abspath("src"))
+
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 import random
-from src.models import BackpackManager, Store, ITEM_CATALOGUE, Item
-from src.ml_surrogate import NNSurrogate
-from src.models_ga import GeneticAlgorithmML
+
+# Maintenant, on enlève "src." partout ici aussi !
+from models import BackpackManager, Store, ITEM_CATALOGUE, Item
+from ml_surrogate import NNSurrogate
+from models_ga import GeneticAlgorithmML
 
 def generate_training_data(num_samples=1000):
     """Génère des configurations aléatoires de sacs pour entraîner le ML"""
