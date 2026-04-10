@@ -68,13 +68,13 @@ C_NN_L = "#9FE1CB"  # Vert clair
 C_WARN = "#BA7517"  # Ambre (gain)
 C_GRAY = "#888780"
 
-OUTPUT_DIR = Path("plots")
+OUTPUT_DIR = Path("src/plots")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 # ── Utilitaires ───────────────────────────────────────────────────────────────
 
-def load_data(path: str = "out/benchmark_results.json") -> dict:
+def load_data(path: str = "src/out/benchmark_results.json") -> dict:
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)

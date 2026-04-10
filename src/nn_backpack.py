@@ -781,7 +781,7 @@ def demo_pipeline():
     trainer.evaluate(buffer)
 
     # Sauvegarder le modèle
-    model_path = "out/backpack_nn.pt"
+    model_path = "src/out/backpack_nn.pt"
     trainer.save_model(model_path)
 
     # -- 4. Comparer les deux approches -------------------------------

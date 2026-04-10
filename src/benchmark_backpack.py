@@ -7,7 +7,7 @@
   
   Usage :
       python benchmark_backpack.py
-      -> Produit benchmark_results.json
+      -> Produit src/out/benchmark_results.json
 =====================================================================
 """
 
@@ -162,7 +162,7 @@ def main():
     trainer = NNTrainer(model, encoder)
     trainer.train(buffer, epochs=30, batch_size=32, patience=8)
     metrics_train = trainer.evaluate(buffer)
-    trainer.save_model("out/backpack_nn.pt")
+    trainer.save_model("src/out/backpack_nn.pt")
     
     print(f"[Train] R²={metrics_train['r2']:.4f} | MAE={metrics_train['mae']:.3f}")
 
@@ -218,7 +218,7 @@ def main():
         },
     }
 
-    out_path = "out/benchmark_results.json"
+    out_path = "src/out/benchmark_results.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 

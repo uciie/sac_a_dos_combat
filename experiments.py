@@ -58,7 +58,7 @@ def run_experiment():
     # 1. Entraîner le Modèle
     X_train, y_train, nn_model = generate_training_data(10000)
     nn_model.train(X_train, y_train)
-    nn_model.save("nn_surrogate.pkl")
+    nn_model.save("src/out/nn_surrogate.pkl")
     
     # 2. Configurer une partie test avec un vrai sac et un inventaire
     print("\nPréparation du sac et de l'inventaire pour la course...")
